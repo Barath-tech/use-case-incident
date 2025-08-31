@@ -39,14 +39,10 @@ def gpt_category_name(text, max_tokens=10, model=SUMMARIZER_MODEL):
 
 # Test tickets
 tickets = [
-    "Queue MS_DWS.PORD_LGCY_C278_FAV1_BACKOUT has a Current Queue Depth of 3",
-    "Job=AMTE0903150 OrderID=51hui Description=(Job that triggers th",
-    "HLXP0FTE01 (ITM[1]) - File Transfer Failed - Job_Name(MQFTE_OUTBOUND_SFTP_RGISMFT_DH_G) Result_Code(",
-    "MFT_MQFTE_AFG_XB60 query result is > 0.0 for 5 minutes on 'Message Age greater than 21600 secs error",
-    "OPEN Custom Alert P-25025423: critical - QM - A2ILFT01 - MessageAge in Queue ITL.I0075.SALES_ORD_FRO",
-    "FOD_I2699_BRADFORDWMS_WLM_FAILURE_FILEAGE_ALERT",
-    "aceapp-ord009-hdx query result is > 0.0 for 5 minutes on 'KubePodNotReady in prod'",
-    "B2B.I3633.DELIVERY_DATA_TO_GIST.LCQ query result is > 0.0 for 1 minutes on 'Message Age greater than"
+    "Server is down",
+    "Database connection failed",
+    "High CPU usage on server",
+    "Disk space is low"
 ]
 
 # Test the tickets
