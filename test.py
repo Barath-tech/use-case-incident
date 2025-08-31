@@ -7,9 +7,9 @@ load_dotenv()
 openai.api_key = os.getenv("OPENROUTER_API_KEY")
 openai.api_base = "https://openrouter.ai/api/v1"
 
-SUMMARIZER_MODEL = "gpt-oss-120b"
+SUMMARIZER_MODEL = "openai/gpt-oss-20b:free"
 
-def gpt_category_name(text, max_tokens=10, model=SUMMARIZER_MODEL):
+def gpt_category_name(text, max_tokens=1000, model=SUMMARIZER_MODEL):
     print("🔹 Calling GPT for category naming...")
     prompt = (
     "You are an AI that categorizes IT incident tickets into short, specific categories."

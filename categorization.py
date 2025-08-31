@@ -4,6 +4,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 from llm import gpt_category_name  # your narrowed prompt function
 from memory import add_category
+import time
 
 def embed_texts(texts, model):
     """Return embeddings array (numpy) or list of vectors."""
@@ -26,15 +27,15 @@ def cluster_and_create_categories(df, embeddings, st_model, mem, n_clusters=8):
         sample_text = members.iloc[0]["_text"]
         print(f"🔸 Creating initial category for cluster {cl}")
 
+        time.sleep(2)  # avoid rate-limit
+
         # 1) Get GPT-proposed name and sanitize it
         raw_name = gpt_category_name(sample_text)
         if not raw_name:
             name = f"Uncategorized_{cl}"
         else:
             # strip extra tokens, remove "Category:" if present, and take first line
-            name = raw_name.splitlines()[0].strip()
-            if name.lower().startswith("category"):
-                name = name.split(":", 1)[-1].strip()
+            name = extract_final_category_name(raw_name)
             if name == "":
                 name = f"Uncategorized_{cl}"
 
@@ -49,22 +50,46 @@ def cluster_and_create_categories(df, embeddings, st_model, mem, n_clusters=8):
 
     return df
 
+def extract_final_category_name(raw_name):
+    """
+    Extract the final category name from the GPT response.
+    Assumes the final category name is the last word or phrase in the response.
+    """
+    # Split the response into lines and find the last valid line
+    lines = raw_name.splitlines()
+    for line in reversed(lines):  # Process lines from bottom to top
+        line = line.strip()
+        if line:  # Ignore empty lines
+            # Check if the line ends with "assistantfinal<Category>"
+            if "assistantfinal" in line:
+                return line.split("assistantfinal")[-1].strip()
+            return line  # Return the last valid line if no "assistantfinal"
+    return None  # Return None if no valid category name is found
+
 def match_to_categories(emb, mem):
     emb_arr = np.array(emb, dtype=float)  # ensure 1D float array
 
-    # Extract stored embeddings
-    mem_embs = [np.array(m["embedding"], dtype=float) for m in mem if "embedding" in m]
+    cats = mem.get("categories", {})
+    if not cats:
+        return None, None
 
-    # Ensure all have same length
-    vector_size = len(emb_arr)
-    mem_embs = [e for e in mem_embs if len(e) == vector_size]
+    # collect embeddings + names
+    mem_names, mem_embs = [], []
+    for cname, cdata in cats.items():
+        if "embedding" in cdata:
+            cemb = np.array(cdata["embedding"], dtype=float)
+            if len(cemb) == len(emb_arr):
+                mem_names.append(cname)
+                mem_embs.append(cemb)
 
     if not mem_embs:
-        return None, None  # no valid embeddings to compare
+        return None, None
 
     sims = cosine_similarity([emb_arr], mem_embs)[0]
     best_idx = np.argmax(sims)
+
     print("Embedding shape:", emb_arr.shape)
     print("Memory shapes:", [len(e) for e in mem_embs])
 
-    return mem[best_idx]["category"], sims[best_idx]
+    return mem_names[best_idx], sims[best_idx]
+

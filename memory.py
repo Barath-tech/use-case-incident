@@ -39,26 +39,18 @@ def save_memory(path: str, memory: dict):
 def add_category(memory: dict, name: str, example: Union[str, List[str]], embedding):
     """
     Add or update a category.
-    - name: MUST be the GPT-returned string (sanitized).
-    - example: a text string or list of texts (examples/incident ids).
-    - embedding: list or numpy array (vector) representing the example(s).
-    Returns memory (modified).
+    - name: category label (from GPT or rule)
+    - example: a text string or list of texts (tickets/incidents)
+    - embedding: numeric vector for example(s)
     """
-    # sanitize name
     if not name or not isinstance(name, str) or name.strip() == "":
         name = "Uncategorized"
     name = name.strip()
 
-    if isinstance(example, str):
-        examples = [example]
-    else:
-        examples = list(example)
+    examples = [example] if isinstance(example, str) else list(example)
 
-    # ensure embedding is a list (or numpy array)
-    if hasattr(embedding, "tolist"):
-        emb_list = embedding.tolist()
-    else:
-        emb_list = embedding
+    # Ensure embedding is list
+    emb_list = embedding.tolist() if hasattr(embedding, "tolist") else embedding
 
     cats = memory.setdefault("categories", {})
 
@@ -67,23 +59,26 @@ def add_category(memory: dict, name: str, example: Union[str, List[str]], embedd
             "examples": examples,
             "embedding": emb_list
         }
-        print(f"[add_category] Created category '{name}' with {len(examples)} example(s).")
+        print(f"[add_category] ✅ Created category '{name}' with {len(examples)} example(s).")
     else:
-        # append new examples without duplicates
         existing = cats[name]["examples"]
+
+        # add new examples (avoid duplicates)
         for ex in examples:
             if ex not in existing:
                 existing.append(ex)
-        # Recompute embedding as mean of stored embedding and new embedding
+
         try:
             cur_emb = np.array(cats[name]["embedding"], dtype=float)
             new_emb = np.array(emb_list, dtype=float)
-            # average the two embeddings (simple running avg)
-            merged = ((cur_emb * len(existing)) + new_emb) / (len(existing) + 1)
+
+            # weighted average
+            merged = (cur_emb * (len(existing) - 1) + new_emb) / len(existing)
             cats[name]["embedding"] = merged.tolist()
         except Exception:
-            # fallback: overwrite if numeric ops fail
             cats[name]["embedding"] = emb_list
-        print(f"[add_category] Updated category '{name}'; total examples: {len(existing)}")
+
+        print(f"[add_category] 🔄 Updated category '{name}'; total examples: {len(existing)}")
 
     return memory
+

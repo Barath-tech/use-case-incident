@@ -1,57 +1,64 @@
 import os
+import re
+import time
 import openai
 from dotenv import load_dotenv
+from openai.error import RateLimitError 
+
 load_dotenv()
 
 # OpenRouter setup
 openai.api_key = os.getenv("OPENROUTER_API_KEY")
 openai.api_base = "https://openrouter.ai/api/v1"
 
-SUMMARIZER_MODEL = "gpt-oss-120b"
+SUMMARIZER_MODEL = "openai/gpt-oss-20b:free"
 
-def gpt_summarize(text, max_tokens=50, model=SUMMARIZER_MODEL):
-    print("🔹 Calling GPT for summarization...")
-    prompt = f"Summarize the following incident in one short sentence:\n\n{text}"
-    resp = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens
-    )
-    print("🔹 GPT summary:", resp.choices[0].message.content.strip())
-    return resp.choices[0].message.content.strip()
 
-def gpt_category_name(text, max_tokens=10, model=SUMMARIZER_MODEL):
+# def gpt_summarize(text, model=SUMMARIZER_MODEL):
+#     print("🔹 Calling GPT for summarization...")
+#     prompt = f"Summarize the following incident in one short sentence:\n\n{text}"
+#     resp = openai.ChatCompletion.create(
+#         model=model,
+#         messages=[{"role": "user", "content": prompt}],
+#         temperature=0.3,
+#     )
+#     summary = resp.choices[0].message.content.strip()
+#     print(f"✅ Summary: {summary}")
+#     time.sleep(2)  # prevent hitting rate-limit
+#     return summary
+
+
+def gpt_category_name(text, model=SUMMARIZER_MODEL):
     print("🔹 Calling GPT for category naming...")
     prompt = (
-		"You are an AI that helps categorize IT incident tickets concisely."
-		"Given the following ticket(s):"
-		f"{text}"
-		"Respond as follows:"
-		"- If you can confidently assign a category, reply with a short, specific category name (maximum 3 words, no quotes, no extra text)."
-		"- If you CANNOT confidently assign a category, reply with exactly this word: Uncategorized"
-		"- Do NOT explain, apologize, repeat the prompt, or add any other information."
-		"- Reply with only the category name or 'Uncategorized', nothing else."
-		"Examples:"
-		"Correct: Network Issue"
-		"Correct: Performance"
-		"Correct: Uncategorized"
-		"Incorrect: Sorry, I cannot categorize this."
-		"Incorrect: This ticket seems to be about..."
-		"Incorrect: 'Network Issue'"
-		"Incorrect: Category: Network Issue"
-		"Now, what is the best category for these tickets?"
-	)
-    resp = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=0.0
+        "You are an AI that categorizes IT incident tickets.\n"
+        f"Ticket:\n{text}\n\n"
+        "Rules:\n"
+        "- Reply ONLY with a short category name (≤3 words) OR 'Uncategorized'.\n"
+        "- No reasoning, no explanations, no quotes.\n"
+        "- Examples:\nNetwork Issue\nPerformance\nUncategorized"
     )
-    raw_output = resp.choices[0].message.content.strip()
 
-    # ✅ Clean response (avoid "Category:" or extra junk)
-    clean_output = raw_output.replace("Category:", "").replace("category:", "").strip()
-    clean_output = clean_output.split("\n")[0]  # only first line
-    print(clean_output)
-    return clean_output
+    while True:  # Retry loop
+        try:
+            resp = openai.ChatCompletion.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
+            raw = resp.choices[0].message.content.strip()
+            if "assistantfinal" in raw:
+                raw = raw.split("assistantfinal")[-1].strip()
 
+            # ✅ Extract clean category
+            clean = re.sub(r"[^A-Za-z0-9 ]+", "", raw).strip()
+            clean = clean.split("\n")[0]
+            print(f"✅ Category: {clean}")
+            time.sleep(2)  # Prevent hitting rate limits
+            return clean
+        except RateLimitError:
+            print("⚠️ Rate limit reached. Retrying after 5 seconds...")
+            time.sleep(5)  # Wait before retrying
+        except Exception as e:
+            print(f"⚠️ Error during GPT call: {e}")
+            return "Uncategorized"

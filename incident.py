@@ -1,6 +1,6 @@
 import pandas as pd
 from sentence_transformers import SentenceTransformer
-from llm import gpt_summarize, gpt_category_name
+from llm import gpt_category_name
 from memory import load_memory, save_memory, add_category
 from categorization import embed_texts, cluster_and_create_categories, match_to_categories
 
@@ -56,28 +56,28 @@ def main():
     # Classification
     results = []
     print("🔄 Classifying incidents...")
+
     for i, row in df.iterrows():
-        emb = inc_embs[i]
+        emb = inc_embs[i]   # incident embedding
         cat_name, score = match_to_categories(emb, mem)
+        print(score, " + ", cat_name)
 
         if cat_name and score >= SIMILARITY_THRESHOLD:
             assigned = cat_name
             print(f"✅ Assigned existing category: {assigned}")
         else:
             cname = gpt_category_name(row["_text"])
-            add_category(mem, st_model, cname, row["_text"])
-            save_memory(MEMORY_PATH,mem)
+            emb_new = st_model.encode(row["_text"])   # get embedding for new example
+            add_category(mem, cname, row["_text"], emb_new)
+            save_memory(MEMORY_PATH, mem)
             assigned, score = cname, 1.0
             print(f"🆕 Created new category: {assigned}")
 
-        summary = gpt_summarize(row["_text"], max_tokens=40)
-
         results.append({
             **row.to_dict(),
-            "auto_category": assigned,
-            "auto_summary": summary
-            # "similarity_score": round(float(score), 3)
+            "auto_category": assigned
         })
+
 
     out_df = pd.DataFrame(results)
     out_df.to_excel(OUTPUT_PATH, index=False)
